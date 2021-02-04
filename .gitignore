@@ -10,3 +10,4 @@ storage/*.key
 .env
 Homestead.yaml
 Homestead.json
+.DS_Store
