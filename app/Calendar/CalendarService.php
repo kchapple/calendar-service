@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Calendar;
+namespace App\Calendar;
 
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -34,6 +34,76 @@ class CalendarService
         }
 
         return $dates;
+    }
+
+    const DAY_START = 8;
+    const DAY_END = 20;
+
+    public static function getCalendarFreeTimes(Carbon $startDate, Carbon $endDate, string $timezone): array
+    {
+        // Need to copy date parameters because getCalendarBusyTimes() modifies dates TODO change to not modify inputs
+        $busyPeriods = self::getCalendarBusyTimes($startDate->copy(), $endDate->copy());
+
+        // Initialize free periods for the given date range, within the hosts work hours
+        // Need to initialize using calendar tz and convert to person booking's timezone
+        $freePeriods = [];
+        $currentDate = Carbon::parse($startDate->toDateTimeLocalString(), self::getCalendarTimezone());
+        while ($currentDate <= $endDate) {
+            $startDateTime = $currentDate->copy()->hour(self::DAY_START)->setTimezone($timezone);
+            $endDateTime = $currentDate->copy()->hour(self::DAY_END)->setTimezone($timezone);
+            $freePeriods[] = [
+                'start_date' => $startDateTime,
+                'end_date' => $endDateTime,
+            ];
+
+            $currentDate->addDay();
+        }
+
+        foreach ($busyPeriods as $busyPeriodUnconverted) {
+            // Convert busy period to the timezone of the person booking to compare with internal calendar
+            $busyPeriod = [
+                'start_date' => $busyPeriodUnconverted['start_date']->copy()->setTimezone($timezone),
+                'end_date' => $busyPeriodUnconverted['end_date']->copy()->setTimezone($timezone)
+            ];
+
+            $updatedFreePeriods = [];
+            foreach ($freePeriods as $freePeriod) {
+                if ($freePeriod['start_date'] < $busyPeriod['start_date'] &&
+                    $freePeriod['end_date'] <= $busyPeriod['end_date']) {
+                    $updatedFreePeriods[] = $freePeriod;
+                } elseif ($freePeriod['start_date'] >= $busyPeriod['end_date'] &&
+                    $freePeriod['end_date'] >= $busyPeriod['start_date']) {
+                    $updatedFreePeriods[] = $freePeriod;
+                } else {
+                    if ($freePeriod['start_date'] < $busyPeriod['start_date']) {
+                        $updatedFreePeriods[] = [
+                            'start_date' => $freePeriod['start_date'],
+                            'end_date' => $busyPeriod['start_date']
+                        ];
+                    }
+                    if ($freePeriod['end_date'] > $busyPeriod['end_date']) {
+                        $updatedFreePeriods[] = [
+                            'start_date' => $busyPeriod['end_date'],
+                            'end_date' => $freePeriod['end_date']
+                        ];
+                    }
+                }
+            }
+
+            $freePeriods = $updatedFreePeriods;
+        }
+
+        return $freePeriods;
+    }
+
+    public static function convertCarbonPeriodsToLocalStrings($periods)
+    {
+        foreach ($periods as &$period) {
+            $period['start_date'] = $period['start_date']->toDateTimeString();
+            $period['end_date'] = $period['end_date']->toDateTimeString();
+        }
+
+        return $periods;
     }
 
     /**

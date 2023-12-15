@@ -1,8 +1,9 @@
 <?php
 
+use App\Http\Controllers\BookingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use App\Services\Calendar\CalendarService;
+use App\Calendar\CalendarService;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,6 +28,4 @@ Route::get('/busy', function () {
     return $busyTimes;
 });
 
-Route::get('/free', function () {
-    return ['error' => 'Unable to process request'];
-});
+Route::get('/free', [BookingController::class, 'handleBookingRequest']);
